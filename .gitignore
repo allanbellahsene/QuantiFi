@@ -95,4 +95,9 @@ FakesAssemblies/
 # /large_data_directory/
 # *.large_file_extension
 backtest_results/
-new_venv/
+/new_venv/
+/venv/
+/new_venv
+venv/
+*.pyc
+__pycache__/

@@ -12,19 +12,3 @@ strategies:
       - "Close > SMA(Close,5)"
     exit_rules:
       - "SMA(Close,7) <= SMA(Close,100)"
-
-  rsi_strategy:
-    order_types: ["long", "short"]
-    entry_rules:
-      - "RSI(14) < 30 and 'long'"
-      - "RSI(14) > 70 and 'short'"
-    exit_rules:
-      - "RSI(14) > 50 and 'long'"
-      - "RSI(14) < 50 and 'short'"
-
-  moving_average_crossover:
-    order_types: ["long"]
-    entry_rules:
-      - "SMA(Close,10) > SMA(Close,50)"
-    exit_rules:
-      - "SMA(Close,10) <= SMA(Close,50)"

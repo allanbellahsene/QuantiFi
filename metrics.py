@@ -59,8 +59,9 @@ class PerformanceMetrics:
         ann_market_return = PerformanceMetrics.annual_return(market_returns, periods_per_year)
         return ann_return - (risk_free_rate + beta * (ann_market_return - risk_free_rate))
 
+
     @staticmethod
-    def calculate_trade_returns(trades_df, current_prices=None):
+    def calculate_trade_returns(trades_df):
         # Sort trades by date and instrument
         trades_df = trades_df.sort_values(['instrument', 'date'])
         
@@ -77,7 +78,7 @@ class PerformanceMetrics:
                 elif trade['action'] == 'CLOSE' and open_trades:
                     open_trade = open_trades.pop(0)
                     
-                    # Calculate trade return for closed trades
+                    # Calculate trade return
                     entry_price = open_trade['price']
                     exit_price = trade['price']
                     units = open_trade['units']
@@ -108,80 +109,78 @@ class PerformanceMetrics:
                     })
             
             # Handle open trades
-            if open_trades and current_prices is not None:
-                for open_trade in open_trades:
-                    entry_price = open_trade['price']
-                    current_price = current_prices.get(instrument)
-                    if current_price is None:
-                        continue
-                    
-                    units = open_trade['units']
-                    
-                    if units > 0:
-                        order = 'LONG'
-                        trade_return = (current_price / entry_price - 1) * 100
-                    else:
-                        order = 'SHORT'
-                        trade_return = (entry_price / current_price - 1) * 100
-                    
-                    entry_date = pd.to_datetime(open_trade['date'])
-                    holding_time = (pd.Timestamp.now() - entry_date).days
-                    
-                    trade_info.append({
-                        'Instrument': instrument,
-                        'Order': order,
-                        'Trade Return (%)': trade_return,
-                        'Entry Price': entry_price,
-                        'Exit Price': current_price,
-                        'Entry Date': entry_date,
-                        'Exit Date': pd.Timestamp.now(),
-                        'Holding Time (days)': holding_time,
-                        'Strategy': open_trade['strategy'],
-                        'Status': 'Open'
-                    })
+            for open_trade in open_trades:
+                trade_info.append({
+                    'Instrument': instrument,
+                    'Order': 'LONG' if open_trade['units'] > 0 else 'SHORT',
+                    'Trade Return (%)': np.nan,
+                    'Entry Price': open_trade['price'],
+                    'Exit Price': np.nan,
+                    'Entry Date': pd.to_datetime(open_trade['date']),
+                    'Exit Date': np.nan,
+                    'Holding Time (days)': np.nan,
+                    'Strategy': open_trade['strategy'],
+                    'Status': 'Open'
+                })
         
         # Create DataFrame from trade_info
         results_df = pd.DataFrame(trade_info)
         
         # Sort by Entry Date
-        if not results_df.empty:
+        if not results_df.empty and 'Entry Date' in results_df.columns:
             results_df = results_df.sort_values('Entry Date')
         
         return results_df
 
     @staticmethod
-    def analyze_trades(trades, current_prices=None):
+    def analyze_trades(trades):
+        print(trades)
         if not trades:
             return pd.DataFrame(columns=['Value'])
 
         trades_df = pd.DataFrame(trades)
         trades_df['date'] = pd.to_datetime(trades_df['date'])
         
-        trades_df = PerformanceMetrics.calculate_trade_returns(trades_df, current_prices)
+        trades_df = PerformanceMetrics.calculate_trade_returns(trades_df)
         print(trades_df)
         trades_df.to_csv('backtest_results/trades_df.csv')
 
         closed_trades = trades_df[trades_df['Status'] == 'Closed']
-        open_trades = trades_df[trades_df['Status'] == 'Open']
-
+        
         metrics = {
             'Total Trades': len(trades_df),
             'Closed Trades': len(closed_trades),
-            'Open Trades': len(open_trades),
-            'Winning Trades': sum(trades_df['Trade Return (%)'] > 0),
-            'Losing Trades': sum(trades_df['Trade Return (%)'] <= 0),
-            'Win Rate': sum(trades_df['Trade Return (%)'] > 0) / len(trades_df) if len(trades_df) > 0 else 0,
-            'Average Trade Return': trades_df['Trade Return (%)'].mean(),
-            'Average Winning Trade': trades_df.loc[trades_df['Trade Return (%)'] > 0, 'Trade Return (%)'].mean(),
-            'Average Losing Trade': trades_df.loc[trades_df['Trade Return (%)'] <= 0, 'Trade Return (%)'].mean(),
-            'Largest Winning Trade': trades_df['Trade Return (%)'].max(),
-            'Largest Losing Trade': trades_df['Trade Return (%)'].min(),
-            'Average Holding Period (days)': (trades_df['Holding Time (days)']).mean(),
+            'Open Trades': len(trades_df) - len(closed_trades),
         }
+
+        if len(closed_trades) > 0:
+            metrics.update({
+                'Winning Trades': sum(closed_trades['Trade Return (%)'] > 0),
+                'Losing Trades': sum(closed_trades['Trade Return (%)'] <= 0),
+                'Win Rate': sum(closed_trades['Trade Return (%)'] > 0) / len(closed_trades),
+                'Average Trade Return': closed_trades['Trade Return (%)'].mean(),
+                'Average Winning Trade': closed_trades.loc[closed_trades['Trade Return (%)'] > 0, 'Trade Return (%)'].mean(),
+                'Average Losing Trade': closed_trades.loc[closed_trades['Trade Return (%)'] <= 0, 'Trade Return (%)'].mean(),
+                'Largest Winning Trade': closed_trades['Trade Return (%)'].max(),
+                'Largest Losing Trade': closed_trades['Trade Return (%)'].min(),
+                'Average Holding Period (days)': closed_trades['Holding Time (days)'].mean(),
+            })
+        else:
+            metrics.update({
+                'Winning Trades': np.nan,
+                'Losing Trades': np.nan,
+                'Win Rate': np.nan,
+                'Average Trade Return': np.nan,
+                'Average Winning Trade': np.nan,
+                'Average Losing Trade': np.nan,
+                'Largest Winning Trade': np.nan,
+                'Largest Losing Trade': np.nan,
+                'Average Holding Period (days)': np.nan,
+            })
 
         return pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
 
-    def calculate_metrics(portfolio_values, benchmark_values, trades, risk_free_rate=0.0, periods_per_year=365, current_prices=None):
+    def calculate_metrics(portfolio_values, benchmark_values, trades, risk_free_rate=0.02, periods_per_year=252):
         portfolio_returns = portfolio_values.pct_change().dropna()
         benchmark_returns = benchmark_values.pct_change().dropna()
 
@@ -197,7 +196,7 @@ class PerformanceMetrics:
             'Alpha': PerformanceMetrics.alpha(portfolio_returns, benchmark_returns, risk_free_rate, periods_per_year)
         }
 
-        trade_metrics = PerformanceMetrics.analyze_trades(trades, current_prices)
+        trade_metrics = PerformanceMetrics.analyze_trades(trades)
         trade_frequency = PerformanceMetrics.analyze_trade_frequency(trades)
 
         return {
@@ -260,16 +259,20 @@ class PerformanceMetrics:
         plt.show()
 
     @staticmethod
-    def plot_trade_returns_distribution(trades, current_prices=None):
+    def plot_trade_returns_distribution(trades):
+        """
+        Plot the distribution of trade returns.
+        
+        """
+
         trades_df = pd.DataFrame(trades)
         trades_df['date'] = pd.to_datetime(trades_df['date'])
         
-        trade_returns_df = PerformanceMetrics.calculate_trade_returns(trades_df, current_prices)
-        
+        trade_returns_df = PerformanceMetrics.calculate_trade_returns(trades_df)
         plt.figure(figsize=(12, 6))
         
         # Create the histogram
-        sns.histplot(data=trade_returns_df, x='Trade Return (%)', kde=True, hue='Status', multiple="stack")
+        sns.histplot(data=trade_returns_df, x='Trade Return (%)', kde=True)
         
         # Add a vertical line at 0
         plt.axvline(x=0, color='r', linestyle='--', label='Break-even')
@@ -291,8 +294,6 @@ class PerformanceMetrics:
         
         # Add summary statistics as text
         stats = f"Total Trades: {len(trade_returns_df)}\n"
-        stats += f"Closed Trades: {sum(trade_returns_df['Status'] == 'Closed')}\n"
-        stats += f"Open Trades: {sum(trade_returns_df['Status'] == 'Open')}\n"
         stats += f"Profitable Trades: {sum(trade_returns_df['Trade Return (%)'] > 0)} ({sum(trade_returns_df['Trade Return (%)'] > 0) / len(trade_returns_df) * 100:.2f}%)\n"
         stats += f"Loss-making Trades: {sum(trade_returns_df['Trade Return (%)'] < 0)} ({sum(trade_returns_df['Trade Return (%)'] < 0) / len(trade_returns_df) * 100:.2f}%)\n"
         stats += f"Max Profit: {trade_returns_df['Trade Return (%)'].max():.2f}%\n"
@@ -423,14 +424,8 @@ class PerformanceMetrics:
         print(f"Results saved in {output_dir}")
 
     @staticmethod
-    def run_full_analysis(portfolio_values, benchmark_values, trades, data_manager, risk_free_rate=0.02, periods_per_year=252):
-        # Get the current prices for open trades
-        current_prices = {}
-        for trade in trades:
-            if trade['action'] == 'OPEN':
-                current_prices[trade['instrument']] = data_manager.fetch_current_price(trade['instrument'], current_date, 'Close')
-        
-        metrics = PerformanceMetrics.calculate_metrics(portfolio_values, benchmark_values, trades, risk_free_rate, periods_per_year, current_prices)
+    def run_full_analysis(portfolio_values, benchmark_values, trades, risk_free_rate=0.0, periods_per_year=365):
+        metrics = PerformanceMetrics.calculate_metrics(portfolio_values, benchmark_values, trades, risk_free_rate, periods_per_year)
         PerformanceMetrics.save_results('backtest_results', metrics)
 
         print("METRICS")
@@ -440,6 +435,12 @@ class PerformanceMetrics:
         print(metrics['Overall Metrics'])
         print("\nTrade Metrics:")
         print(metrics['Trade Metrics'])
+        #print("\nLong Trade Metrics:")
+        #print(metrics['Long Trade Metrics'])
+        #print("\nShort Trade Metrics:")
+        #print(metrics['Short Trade Metrics'])
+        #print("\nTrade Frequency:")
+        #print(metrics['Trade Frequency'])
         
         portfolio_returns = portfolio_values.pct_change().dropna()
         benchmark_returns = benchmark_values.pct_change().dropna()
@@ -447,7 +448,7 @@ class PerformanceMetrics:
         PerformanceMetrics.plot_equity_curve(portfolio_values, benchmark_values)
         PerformanceMetrics.plot_drawdown(portfolio_returns)
         PerformanceMetrics.plot_monthly_returns_heatmap(portfolio_returns)
-        PerformanceMetrics.plot_trade_returns_distribution(trades, current_prices)
+        PerformanceMetrics.plot_trade_returns_distribution(trades)
         #PerformanceMetrics.plot_trade_frequency(metrics['Trade Frequency'])
         #PerformanceMetrics.plot_cumulative_returns(portfolio_returns, benchmark_returns)
         #PerformanceMetrics.plot_rolling_sharpe(portfolio_returns)

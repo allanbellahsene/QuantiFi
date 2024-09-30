@@ -113,11 +113,10 @@ class BacktestEngine:
             portfolio_df['Value'], 
             benchmark_df['Value'], 
             trades, 
-            self.data_manager,  # Pass the DataManager instance
-            current_date,       # Pass the current date
             risk_free_rate=0.02, 
             periods_per_year=365
         )
+
 
         # Print summary statistics
         print("\nBacktest Summary:")
