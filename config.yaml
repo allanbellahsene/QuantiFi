@@ -1,0 +1,49 @@
+# Strategy configuration
+strategy: short_mean_reversion  # Name of the strategy to use (should match a strategy in strategies.yaml)
+
+# Backtest parameters
+backtest:
+  initial_cash: 100_000
+  min_cash: 10_000
+  max_open_positions: 3
+  start_date: '2020-02-14'
+  end_date: '2020-03-03'
+
+# General parameters
+params:
+  transaction_cost: 0.005  # 0.5% transaction cost
+  slippage: 0.001  # 0.1% slippage
+  rebalancing: false
+  regime_filter: true
+  vol_target: 0.7  # 70% volatility target
+  vol_window: 60
+  target_vol_thres: 0.1
+  allocation_type: 'equal_weight'
+  position_stop_loss: 0.1  # 10% stop loss per position
+  max_allocation_per_coin: 0.05
+  
+  # Data parameters
+  lookback_window: 10
+  long_regime_window: 100
+  med_regime_window: 50
+  short_regime_window: 7
+  
+  # Universe selection parameters
+  max_MC_rank: 200
+  min_volume_thres: 1_000_000  # $1 million minimum daily volume
+  
+  # Ranking method
+  ranking_method: 'volume'  # Options: 'volume', 'momentum', 'mean_reversion', etc.
+  
+  # Strategy-specific parameters (you can add more as needed)
+  rsi_window: 14
+  n_coins: 5
+  perf_thres: 0.05
+
+# Output configuration
+output_dir: 'backtest_results'
+
+### ADD: PLOT SIGNALS INDIVIDUALLY FOR EACH COIN
+### SAVE TRADE DF
+#### PLOT EXPOSURE OVER TIME (TO SEE IF WE RE LONG, CASH OR SHORT)
+#### PLOT CASH AND EQUITY OVER TIME
